@@ -1,2 +1,2 @@
 # wbxCode
-wbx code study
+my first community project
