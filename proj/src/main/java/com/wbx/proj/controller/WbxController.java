@@ -2,8 +2,11 @@ package com.wbx.proj.controller;
 
 import com.wbx.proj.service.WbxService;
 import com.wbx.proj.service.WbxServiceImpl;
+import com.wbx.proj.util.ProjUtil;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -116,4 +119,40 @@ public class WbxController {
         map.put("location", "稻妻");
         return map;
     }
+
+    // Cookie
+    @RequestMapping(path="/cookie/set",method=RequestMethod.GET)
+    @ResponseBody
+    public String setCookie(HttpServletResponse response) {
+        Cookie cookie = new Cookie("code", ProjUtil.generateUUID());
+        cookie.setPath("/wbx/proj");
+        cookie.setMaxAge(10 * 60);
+        response.addCookie(cookie);
+        return "set cookie ok!";
+    }
+
+    @RequestMapping(path="/cookie/get", method=RequestMethod.GET)
+    @ResponseBody
+    public String getCookie(@CookieValue("code") String cookie) {
+        System.out.println(cookie);
+        return cookie;
+    }
+
+    // session
+    @RequestMapping(path="/session/set",method=RequestMethod.GET)
+    @ResponseBody
+    public String setSession(HttpSession session) {
+        session.setAttribute("id",1);
+        session.setAttribute("name","session1");
+        return "set session ok!";
+    }
+
+    @RequestMapping(path="/session/get",method=RequestMethod.GET)
+    @ResponseBody
+    public String getSession(HttpSession session) {
+        System.out.println(session.getAttribute("id"));
+        System.out.println(session.getAttribute("name"));
+        return "get session ok!";
+    }
+
 }
