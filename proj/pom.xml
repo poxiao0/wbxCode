@@ -77,6 +77,36 @@
 			<artifactId>spring-boot-maven-plugin</artifactId>
 			<version>3.0.2</version>
 		</dependency>
+<!--json-->
+		<dependency>
+			<groupId>com.alibaba</groupId>
+			<artifactId>fastjson</artifactId>
+			<version>1.2.58</version>
+		</dependency>
+<!--aop spring实现-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-aop</artifactId>
+		</dependency>
+<!--		redis-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
+			<version>3.0.2</version>
+		</dependency>
+<!--		kafka-->
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka</artifactId>
+		</dependency>
+<!--		<dependency>-->
+<!--			<groupId>org.apache.kafka</groupId>-->
+<!--			<artifactId>kafka-clients</artifactId>-->
+<!--		</dependency>-->
+<!--		<dependency>-->
+<!--			<groupId>org.apache.kafka</groupId>-->
+<!--			<artifactId>kafka_2.13</artifactId>-->
+<!--		</dependency>-->
 
 
 

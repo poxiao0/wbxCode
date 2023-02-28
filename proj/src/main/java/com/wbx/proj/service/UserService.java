@@ -7,9 +7,11 @@ import com.wbx.proj.entity.User;
 import com.wbx.proj.util.MailClient;
 import com.wbx.proj.util.ProjConstant;
 import com.wbx.proj.util.ProjUtil;
+import com.wbx.proj.util.RedisKeyUtil;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
@@ -18,6 +20,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class UserService implements ProjConstant {
@@ -31,8 +34,11 @@ public class UserService implements ProjConstant {
     @Autowired
     private TemplateEngine templateEngine;
 
+//    @Autowired
+//    private LoginTicketMapper loginTicketMapper;
+
     @Autowired
-    private LoginTicketMapper loginTicketMapper;
+    private RedisTemplate redisTemplate;
 
     @Value("proj.path.domain")
     private String domain;
@@ -41,7 +47,12 @@ public class UserService implements ProjConstant {
     private String contextPath;
 
     public User findUserById (int id) {
-        return userMapper.selectById(id);
+//        return userMapper.selectById(id);
+        User user = getCache(id);
+        if (user == null) {
+            user = initCache(id);
+        }
+        return user;
     }
 
     public Map<String,Object> Register(User user) {
@@ -146,23 +157,86 @@ public class UserService implements ProjConstant {
         loginTicket.setStatus(0);
         loginTicket.setTicket(ProjUtil.generateUUID());
         loginTicket.setExpired(new Date(System.currentTimeMillis() + expiredSeconds * 1000));
-        loginTicketMapper.insertLoginTicket(loginTicket);
+//        loginTicketMapper.insertLoginTicket(loginTicket);
+
+        String redisKey = RedisKeyUtil.getTicketKey(loginTicket.getTicket());
+        redisTemplate.opsForValue().set(redisKey, loginTicket);
 
         map.put("ticket", loginTicket.getTicket());
 
         return map;
     }
 
+    public Map<String, Object> forget(String email, String password) {
+        Map<String, Object> map = new HashMap<>();
+        User user = userMapper.selectByEmail(email);
+
+        if (user == null) {
+            map.put("emailMsg", "该邮箱未被注册！请重新注册！");
+            return map;
+        }
+
+        String newPassword = ProjUtil.md5(password + user.getSalt());
+        if (newPassword.equals(user.getPassword())) {
+            map.put("passwordMsg", "新密码与旧密码相同，请输入新的密码！");
+            return map;
+        }
+
+        userMapper.updatePassword(user.getId(), newPassword);
+        return map;
+    }
+
+    // 重置密码
+    public Map<String, Object> resetPassword(String email, String password) {
+        Map<String, Object> map = new HashMap<>();
+
+        // 空值处理
+        if (StringUtils.isBlank(email)) {
+            map.put("emailMsg", "邮箱不能为空!");
+            return map;
+        }
+        if (StringUtils.isBlank(password)) {
+            map.put("passwordMsg", "密码不能为空!");
+            return map;
+        }
+
+        // 验证邮箱
+        User user = userMapper.selectByEmail(email);
+        if (user == null) {
+            map.put("emailMsg", "该邮箱尚未注册!");
+            return map;
+        }
+
+        // 重置密码
+        password = ProjUtil.md5(password + user.getSalt());
+        userMapper.updatePassword(user.getId(), password);
+        clearCache(user.getId());
+        initCache(user.getId());
+
+        map.put("user", user);
+        return map;
+    }
+
     public void logout(String ticket) {
-        loginTicketMapper.updateStatus(ticket, 1);
+//        loginTicketMapper.updateStatus(ticket, 1);
+        String redisKey = RedisKeyUtil.getTicketKey(ticket);
+        LoginTicket loginTicket = (LoginTicket) redisTemplate.opsForValue().get(redisKey);
+        loginTicket.setStatus(1);
+        redisTemplate.opsForValue().set(redisKey,loginTicket);
     }
 
     public LoginTicket selectByTicket (String ticket) {
-        return loginTicketMapper.selectByTicket(ticket);
+//        return loginTicketMapper.selectByTicket(ticket);
+        String redisKey = RedisKeyUtil.getTicketKey(ticket);
+        return (LoginTicket) redisTemplate.opsForValue().get(redisKey);
     }
 
     public int updateHeader(int id, String headerUrl) {
-        return userMapper.updateHeader(id, headerUrl);
+//        return userMapper.updateHeader(id, headerUrl);
+        int cnt = userMapper.updateHeader(id, headerUrl);
+        clearCache(id);
+        initCache(id);
+        return cnt;
     }
 
     public Map<String, Object> updatePassword (int id, String oldPassword, String newPassword, String confirmPassword) {
@@ -187,7 +261,31 @@ public class UserService implements ProjConstant {
         }
 
         userMapper.updatePassword(id, pssd);
+        clearCache(id);
+        initCache(id);
         return map;
+    }
+
+    public User findUserByName(String username) {
+        return userMapper.selectByName(username);
+    }
+
+    // 1.先从缓存中取
+    private User getCache(int userId) {
+        String redisKey = RedisKeyUtil.getUserKey(userId);
+        return (User) redisTemplate.opsForValue().get(redisKey);
+    }
+    // 2.缓存取不到，初始化缓存
+    private User initCache(int userId) {
+        User user = userMapper.selectById(userId);
+        String redisKey = RedisKeyUtil.getUserKey(userId);
+        redisTemplate.opsForValue().set(redisKey, user,3600, TimeUnit.SECONDS);
+        return user;
+    }
+    // 3.更新数据时，删除缓存
+    private void clearCache(int userId) {
+        String redisKey = RedisKeyUtil.getUserKey(userId);
+        redisTemplate.delete(redisKey);
     }
 
 }
